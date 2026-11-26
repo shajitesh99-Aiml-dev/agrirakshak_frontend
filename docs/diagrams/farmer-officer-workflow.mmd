@@ -1,0 +1,50 @@
+sequenceDiagram
+    autonumber
+    actor Farmer as Farmer (Kisan)
+    participant UI as React 19 Frontend
+    participant API as Node.js Backend API
+    participant AI as Groq Vision AI Engine
+    participant DB as Persistence Layer (Prisma)
+    actor Officer as Agricultural Officer (Agronomist)
+
+    %% Step 1: Farmer reports problem
+    Farmer->>UI: Selects Crop, Symptoms, Uploads Photo & Enters Consent
+    UI->>API: POST /api/v1/cases (Bearer Token)
+    API->>DB: Save Case (Initial Status: Pending)
+    API-->>UI: Case Created (CASE-2026-XXX)
+
+    %% Step 2: AI Diagnostic Decision Support
+    UI->>API: POST /api/v1/analyze/crop-case
+    Note over API,AI: Confidential GROQ_API_KEY used strictly server-side
+    API->>AI: Image & Symptom Telemetry Request
+    AI-->>API: JSON: Prediction, Confidence, Severity, Recommendations, Escalation Flag
+    API->>DB: Atomic Update: Case.aiAnalysis + CaseTimeline Event
+    API-->>UI: Persisted Diagnostic Advisory Result
+
+    alt High Severity or Critical Pest Threshold
+        Note over API,DB: System auto-escalates case (Status: Escalated)
+        API->>DB: Enqueue in Officer Triage Queue
+    else Routine / Moderate Pathology
+        Note over API: Queued for standard supervisory review
+    end
+
+    %% Step 3: Officer Triage & Review
+    Officer->>UI: Log in & Inspect Triage Queue (/officer/cases)
+    UI->>API: GET /api/v1/cases/queue
+    API->>DB: Fetch Pending & Escalated Cases
+    API-->>UI: Return Case Details with AI Diagnostics
+
+    Officer->>UI: Scientific Review: Confirm/Modify Diagnosis + Prescribe Advisory
+    opt On-site Validation Required
+        Officer->>UI: Schedule Field Inspection Visit (Date, Plot Location)
+    end
+    UI->>API: POST /api/v1/cases/:id/review (Bearer Token)
+    API->>DB: prisma.$transaction([Update Case, Create Review Timeline, Create Visit Timeline])
+    API->>DB: Create Farmer Notification (Target: farmerId)
+    API-->>UI: Review Acknowledged & Status Updated to Resolved / Under Review
+
+    %% Step 4: Farmer Notification & Advisory Follow-up
+    Farmer->>UI: Receives Real-time Notification Banner
+    UI->>API: GET /api/v1/notifications
+    API-->>UI: "Dr. Priya Sharma issued verified advisory for Case #CASE-2026-XXX"
+    Farmer->>UI: Views Detailed Case Timeline & Prescription Advisory (Telugu/Hindi/English/Kannada)

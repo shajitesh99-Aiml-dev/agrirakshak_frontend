@@ -1,0 +1,41 @@
+graph TB
+    subgraph ClientDevice ["Client Tier (Browser Client)"]
+        Browser["User Browser (Desktop / Mobile 375px+)<br/>Executes React 19 SPA Code<br/>Base URL: http://localhost:8000/api/v1<br/>*Never resolves internal Docker hostnames*"]
+    end
+
+    subgraph HostDeployment ["Host Deployment Environment"]
+        subgraph VerifiedLocal ["Phase 14 Verified Bare-Metal Mode (Active Demonstration)"]
+            ViteDev["Vite Development Server (Port 5173)<br/>[VERIFIED & RUNNING]"]
+            NodeAPI["Node.js Native Server (Port 8000)<br/>[VERIFIED & RUNNING]<br/>• Resilient Standalone Memory Store<br/>• Strictly Guarded Database Required Mode"]
+        end
+
+        subgraph ContainerizedTopology ["Docker Compose Production Topology (Configuration Validated)"]
+            NginxContainer["frontend container (Port 80)<br/>Hardened Nginx Alpine<br/>*Host Runtime Status: BLOCKED (No local Docker)*"]
+            BackendContainer["backend container (Port 8000)<br/>Unprivileged user: node<br/>*Host Runtime Status: BLOCKED (No local Docker)*"]
+            PostgresContainer[("db container (Port 5432)<br/>PostgreSQL 16 Alpine + pgdata volume<br/>*Host Runtime Status: BLOCKED (No local Docker)*")]
+        end
+    end
+
+    subgraph ExternalServices ["External Cloud Services (Server-Side Only)"]
+        GroqAPI["Groq Cloud AI (api.groq.com)<br/>Model: llama-3.3-70b-versatile<br/>[VERIFIED & OPERATIONAL VIA BACKEND]"]
+    end
+
+    subgraph CIEnvironment ["GitHub Actions CI Environment (Remote Ubuntu Runner)"]
+      CIRunner["GitHub Actions Runner<br/>• Node 20.x / 22.x matrix<br/>• Ephemeral PostgreSQL 16 Service Container<br/>• Runs test:db-lifecycle with DATABASE_REQUIRED=true<br/>*Remote Execution Status: PENDING REPO DISPATCH*"]
+    end
+
+    Browser -->|"HTTP / REST API (Port 8000)"| NodeAPI
+    Browser -.->|"Production Port 80 (When Containerized)"| NginxContainer
+
+    NginxContainer -.->|"Internal Network (agri-rakshak-net)"| BackendContainer
+    BackendContainer -.->|"Internal Network (db:5432)"| PostgresContainer
+
+    NodeAPI -->|"HTTPS (Server-Side Bearer Token)"| GroqAPI
+    BackendContainer -.->|"HTTPS (Server-Side Bearer Token)"| GroqAPI
+
+    style PostgresContainer stroke:#f59e0b,stroke-width:2px,stroke-dasharray: 5 5
+    style NginxContainer stroke:#f59e0b,stroke-width:2px,stroke-dasharray: 5 5
+    style BackendContainer stroke:#f59e0b,stroke-width:2px,stroke-dasharray: 5 5
+    style CIRunner stroke:#3b82f6,stroke-width:2px,stroke-dasharray: 5 5
+    style NodeAPI stroke:#10b981,stroke-width:2px
+    style ViteDev stroke:#10b981,stroke-width:2px

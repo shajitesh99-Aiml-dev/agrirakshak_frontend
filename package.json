@@ -1,0 +1,50 @@
+{
+  "name": "agri-rakshak",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "server": "node --env-file=.env server/server.js",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "i18n:check": "node scripts/check-i18n.js",
+    "test:security": "node scripts/test-security.js",
+    "test:persistence": "node scripts/test-persistence.js",
+    "test:db-lifecycle": "node scripts/test-real-db-lifecycle.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "node server/scripts/seed.js",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@eslint/js": "^10.0.1",
+    "@prisma/client": "^6.19.3",
+    "autoprefixer": "^10.6.1",
+    "axios": "^1.20.0",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "lucide-react": "^1.54.0",
+    "pg": "^8.23.1",
+    "postcss": "^8.5.29",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-hook-form": "^7.89.0",
+    "react-router-dom": "^7.18.4",
+    "recharts": "^3.10.1",
+    "tailwindcss": "^3.4.19",
+    "typescript-eslint": "^8.71.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "oxlint": "^1.81.0",
+    "prisma": "^6.19.3",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
+  }
+}

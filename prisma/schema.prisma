@@ -1,0 +1,139 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                   String         @id
+  name                 String
+  email                String?        @unique
+  phone                String         @unique
+  role                 String         @default("farmer") // 'farmer' | 'officer' | 'admin'
+  village              String?
+  district             String?
+  state                String?
+  farmSizeAcres        Float?
+  preferredLanguage    String         @default("en")
+  assignedJurisdiction String?
+  badgeNumber          String?
+  administrativeRegion String?
+  permissions          String[]       @default([])
+  salt                 String
+  passwordHash         String
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  cases                Case[]
+  notifications        Notification[]
+
+  @@index([role])
+  @@index([district])
+  @@index([phone])
+  @@index([email])
+}
+
+model Case {
+  id            String         @id
+  farmerId      String
+  farmer        User           @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  farmerName    String
+  farmerPhone   String?
+  farmSizeAcres Float?
+  cropName      String
+  status        String         @default("pending") // 'pending' | 'under_review' | 'analyzing' | 'resolved' | 'escalated'
+  severity      String         @default("moderate") // 'low' | 'moderate' | 'high' | 'critical'
+  growthStage   String?
+  village       String?
+  district      String?
+  state         String?
+  description   String
+  symptoms      String[]       @default([])
+  imageUrls     String[]       @default([])
+  aiAnalysis    Json?
+  officerReview Json?
+  reportedAt    DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  timeline      CaseTimeline[]
+
+  @@index([farmerId])
+  @@index([status])
+  @@index([severity])
+  @@index([district])
+  @@index([reportedAt])
+}
+
+model CaseTimeline {
+  id          String   @id @default(uuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  type        String
+  title       String
+  description String
+  actor       String
+  actorId     String?
+  timestamp   DateTime @default(now())
+
+  @@index([caseId])
+  @@index([timestamp])
+}
+
+model Notification {
+  id           String   @id @default(uuid())
+  type         String
+  title        String
+  message      String
+  read         Boolean  @default(false)
+  caseId       String?
+  severity     String   @default("info")
+  targetRole   String   @default("all")
+  targetUserId String?
+  targetUser   User?    @relation(fields: [targetUserId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([targetUserId])
+  @@index([targetRole])
+  @@index([read])
+  @@index([createdAt])
+}
+
+model OutbreakAlert {
+  id                String   @id
+  alertType         String
+  title             String
+  affectedRegion    String
+  dominantIssue     String
+  caseCount         Int      @default(1)
+  trend             String   @default("increasing")
+  severity          String   @default("high")
+  detectedAt        DateTime @default(now())
+  recommendedAction String
+  acknowledged      Boolean  @default(false)
+
+  @@index([severity])
+  @@index([acknowledged])
+}
+
+model Hotspot {
+  id               String   @id
+  district         String
+  state            String
+  village          String?
+  latitude         Float
+  longitude        Float
+  caseCount        Int      @default(1)
+  severity         String   @default("moderate")
+  dominantIssue    String
+  dominantCategory String   @default("pest")
+  trend            String   @default("increasing")
+  affectedCrops    String[] @default([])
+  lastReportedAt   DateTime @default(now())
+  officersAssigned Int      @default(1)
+
+  @@index([district])
+  @@index([severity])
+}

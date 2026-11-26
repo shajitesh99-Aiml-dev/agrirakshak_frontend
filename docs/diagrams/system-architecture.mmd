@@ -1,0 +1,54 @@
+graph TB
+    subgraph ClientLayer ["Client Layer (Web & Mobile Browser)"]
+        FarmerUI["Farmer Portal (React 19)<br/>• Multilingual (EN, TE, HI, KN)<br/>• Case Reporting Wizard<br/>• Advisory & Notification Feed"]
+        OfficerUI["Officer Portal (React 19)<br/>• Triage Queue<br/>• Scientific Assessment & Advisory<br/>• Field Visit Scheduling"]
+        AdminUI["Admin Portal (React 19)<br/>• Outbreak Heatmaps & Hotspots<br/>• Regional Epidemiological Trends<br/>• Telemetry & System Status"]
+    end
+
+    subgraph SecurityGate ["Security & Middleware Boundary"]
+        SecHeaders["Security Headers (CSP, HSTS, X-Frame-Options)"]
+        CorsGuard["CORS Origin Allowlist"]
+        RateLimit["Sliding-Window Rate Limiting"]
+        AuthRBAC["PBKDF2 Auth & HMAC-SHA256 Token Verification"]
+    end
+
+    subgraph BackendCore ["Agri Rakshak Backend (Node.js Port 8000)"]
+        AuthRouter["Auth & Profile Routes"]
+        CaseRouter["Case Management & Timeline Router"]
+        NotifyRouter["Notification Dispatch Router"]
+        AdminRouter["Surveillance & Analytics Router"]
+        AIProxy["Groq AI Diagnostic Proxy<br/>(Confidential Server-Side Client)"]
+    end
+
+    subgraph AIDiagnostic ["External AI Provider (Server-to-Server Only)"]
+        GroqCloud["Groq Cloud LLaMA 3.3 70B Versatile<br/>Vision Reasoning & Agronomic Formatting"]
+    end
+
+    subgraph DataLayer ["Persistence Layer (Dual-Mode Resilient Architecture)"]
+        PrismaORM["Prisma ORM Client v6.19.3<br/>(Atomic Transactions & FK Cascades)"]
+        PG_DB[("PostgreSQL 16 Database<br/>[PRODUCTION / STRICT MODE]<br/>(Docker / Native Daemon)<br/>*Local host test: BLOCKED*")]
+        FallbackStore[("Standalone In-Memory Store<br/>[DEVELOPMENT FALLBACK]<br/>(Non-blocking Resilient Demo)")]
+    end
+
+    FarmerUI --> SecHeaders
+    OfficerUI --> SecHeaders
+    AdminUI --> SecHeaders
+
+    SecHeaders --> CorsGuard --> RateLimit --> AuthRBAC
+
+    AuthRBAC --> AuthRouter
+    AuthRBAC --> CaseRouter
+    AuthRBAC --> NotifyRouter
+    AuthRBAC --> AdminRouter
+
+    CaseRouter --> AIProxy
+    AIProxy -->|"HTTPS JSON Payload (No Client Exposure)"| GroqCloud
+    GroqCloud -->|"Diagnostic Advisory Inference"| AIProxy
+
+    AuthRouter --> PrismaORM
+    CaseRouter --> PrismaORM
+    NotifyRouter --> PrismaORM
+    AdminRouter --> PrismaORM
+
+    PrismaORM -.->|"DATABASE_REQUIRED=true"| PG_DB
+    PrismaORM -.->|"DATABASE_REQUIRED=false (Fallback)"| FallbackStore

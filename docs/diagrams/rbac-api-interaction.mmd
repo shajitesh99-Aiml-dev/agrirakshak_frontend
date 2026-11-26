@@ -1,0 +1,61 @@
+graph TD
+    subgraph Users ["Actors & Client Roles"]
+        U_Farmer["Farmer<br/>(kisan@agrirakshak.in)"]
+        U_Officer["Agricultural Officer<br/>(officer@agrirakshak.in)"]
+        U_Admin["State/District Admin<br/>(admin@agrirakshak.in)"]
+    end
+
+    subgraph AuthLayer ["Authentication & Token Verification"]
+        LoginEndpoint["POST /api/v1/auth/login<br/>(PBKDF2 Password Verification)"]
+        TokenGen["HMAC-SHA256 Token Generator<br/>(Embeds: id, role, phone)"]
+        AuthMiddleware["authenticateRequest()<br/>(Validates Signature & Expiration)"]
+        RoleMiddleware["requireRole(allowedRoles)<br/>(Strict Role Boundary Enforcement)"]
+    end
+
+    subgraph FarmerEndpoints ["Farmer API Scope (Role: 'farmer' or 'admin')"]
+        EP_FarmerDash["GET /api/v1/dashboard/farmer"]
+        EP_FarmerCases["GET /api/v1/cases (Filtered by farmerId)"]
+        EP_CreateCase["POST /api/v1/cases (Ownership Assigned)"]
+        EP_AnalyzeCase["POST /api/v1/analyze/crop-case"]
+        EP_Notifications["GET /api/v1/notifications (Targeted to farmerId/all)"]
+    end
+
+    subgraph OfficerEndpoints ["Officer API Scope (Role: 'officer' or 'admin')"]
+        EP_OfficerDash["GET /api/v1/dashboard/officer"]
+        EP_OfficerQueue["GET /api/v1/cases/queue (District Scope)"]
+        EP_SubmitReview["POST /api/v1/cases/:id/review"]
+        EP_UpdateStatus["PATCH /api/v1/cases/:id/status"]
+    end
+
+    subgraph AdminEndpoints ["Admin API Scope (Role: 'admin' ONLY)"]
+        EP_AdminDash["GET /api/v1/dashboard/admin"]
+        EP_Surveillance["GET /api/v1/surveillance/outbreaks"]
+        EP_Hotspots["GET /api/v1/surveillance/hotspots"]
+        EP_UserMgmt["GET /api/v1/admin/users"]
+    end
+
+    U_Farmer --> LoginEndpoint
+    U_Officer --> LoginEndpoint
+    U_Admin --> LoginEndpoint
+
+    LoginEndpoint --> TokenGen --> AuthMiddleware --> RoleMiddleware
+
+    RoleMiddleware -->|"Allowed: farmer, admin"| EP_FarmerDash
+    RoleMiddleware -->|"Allowed: farmer, admin"| EP_FarmerCases
+    RoleMiddleware -->|"Allowed: farmer, admin"| EP_CreateCase
+    RoleMiddleware -->|"Allowed: farmer, admin"| EP_AnalyzeCase
+    RoleMiddleware -->|"Allowed: farmer, admin"| EP_Notifications
+
+    RoleMiddleware -->|"Allowed: officer, admin"| EP_OfficerDash
+    RoleMiddleware -->|"Allowed: officer, admin"| EP_OfficerQueue
+    RoleMiddleware -->|"Allowed: officer, admin"| EP_SubmitReview
+    RoleMiddleware -->|"Allowed: officer, admin"| EP_UpdateStatus
+
+    RoleMiddleware -->|"Allowed: admin ONLY"| EP_AdminDash
+    RoleMiddleware -->|"Allowed: admin ONLY"| EP_Surveillance
+    RoleMiddleware -->|"Allowed: admin ONLY"| EP_Hotspots
+    RoleMiddleware -->|"Allowed: admin ONLY"| EP_UserMgmt
+
+    RoleMiddleware -.->|"Farmer accesses Officer/Admin routes"| Block403["403 Forbidden Response"]
+    RoleMiddleware -.->|"Officer accesses Admin surveillance"| Block403
+    RoleMiddleware -.->|"Unauthenticated Request"| Block401["401 Unauthorized Response"]

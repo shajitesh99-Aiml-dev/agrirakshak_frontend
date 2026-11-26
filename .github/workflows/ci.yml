@@ -1,0 +1,140 @@
+name: Agri Rakshak CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  validate-and-test:
+    name: Code Quality, Security & Persistence Suite
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test_password_123
+          POSTGRES_DB: agri_rakshak_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install Project Dependencies (Clean Lockfile)
+        run: npm ci
+
+      - name: Generate Prisma ORM Client
+        run: npx prisma generate
+
+      - name: Apply Database Migrations to Real Ephemeral PostgreSQL
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:ci_test_password_123@localhost:5432/agri_rakshak_ci
+
+      - name: Static Code Analysis (Oxlint)
+        run: npx oxlint
+
+      - name: Code Quality & Style Gate (ESLint)
+        run: npm run lint
+
+      - name: TypeScript Static Typecheck
+        run: npx tsc -b
+
+      - name: Multilingual i18n Key Parity Check (EN / TE / HI / KN)
+        run: npm run i18n:check
+
+      - name: Run Real PostgreSQL Lifecycle & Persistence Suite
+        run: npm run test:db-lifecycle
+        env:
+          DATABASE_URL: postgresql://postgres:ci_test_password_123@localhost:5432/agri_rakshak_ci
+          DATABASE_REQUIRED: "true"
+          NODE_ENV: test
+
+      - name: Verify DATABASE_REQUIRED Strict Mode (Fail Safe)
+        run: |
+          echo "Verifying server safely aborts when database is required but unreachable..."
+          ! DATABASE_REQUIRED=true DATABASE_URL=postgresql://invalid:invalid@localhost:9999/invalid node server/server.js
+
+      - name: Run Phase 13 Persistence & DB Unit Tests
+        run: npm run test:persistence
+        env:
+          DATABASE_URL: postgresql://postgres:ci_test_password_123@localhost:5432/agri_rakshak_ci
+          NODE_ENV: test
+
+      - name: Run Backend API & Security Regression Suite
+        run: |
+          # Launch background test server instance
+          node server/server.js &
+          SERVER_PID=$!
+          # Wait for server to become responsive
+          sleep 3
+          # Execute automated test suite
+          npm run test:security
+          # Gracefully terminate background test server
+          kill $SERVER_PID
+        env:
+          PORT: 8000
+          NODE_ENV: test
+          AUTH_SECRET: ci-test-dummy-auth-secret-key-32-chars-long
+          ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+
+      - name: Production Frontend Bundle Build
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: http://localhost:8000/api/v1
+
+      - name: Verify Bundle Integrity (Zero Leakage Check)
+        run: |
+          echo "Scanning production bundle for accidental secret exposure..."
+          if grep -rn "gsk_" dist/; then
+            echo "CRITICAL ERROR: Groq secret key pattern detected in frontend bundle!"
+            exit 1
+          else
+            echo "PASS: Zero secret exposure detected in production bundle."
+          fi
+
+  docker-validation:
+    name: Docker Configuration & Syntax Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Backend Dockerfile Build (Dry Run)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend.Dockerfile
+          push: false
+          tags: agri-rakshak-backend:ci-check
+
+      - name: Validate Frontend Dockerfile Build (Dry Run)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: frontend.Dockerfile
+          push: false
+          tags: agri-rakshak-frontend:ci-check

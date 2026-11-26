@@ -1,0 +1,108 @@
+# ==============================================================================
+# Agri Rakshak - Production Deployment Orchestration
+# Smart India Hackathon 2026 (SIH26131)
+# ==============================================================================
+# Services:
+#   1. db:       PostgreSQL 16 Alpine database with persistent volume
+#   2. backend:  Node.js API & Groq AI reasoning engine with Prisma ORM
+#   3. frontend: Production React 19 SPA served via hardened Nginx
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. PostgreSQL Database Service
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: agri_rakshak_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-agri_rakshak}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./prisma/migrations/0_init/migration.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    # For security: Only bind to localhost on the host machine for administration;
+    # not accessible to public internet interfaces.
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks:
+      - agri-rakshak-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-agri_rakshak}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ----------------------------------------------------------------------------
+  # 2. Node.js Backend API Service
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    container_name: agri_rakshak_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: "8000"
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-agri_rakshak}?schema=public
+      ALLOWED_ORIGINS: "http://localhost,http://localhost:80,http://localhost:5173,http://127.0.0.1"
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      AUTH_SECRET: ${AUTH_SECRET:-agri-rakshak-prod-auth-secret-change-in-env}
+    ports:
+      - "8000:8000"
+    networks:
+      - agri-rakshak-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ----------------------------------------------------------------------------
+  # 3. React 19 Frontend Web Application (Nginx)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+      args:
+        # Note: In browser architectures, user browsers execute on client host,
+        # so browser code reaches the backend via host-accessible URL, not Docker internal name.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+    container_name: agri_rakshak_frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    networks:
+      - agri-rakshak-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+# ------------------------------------------------------------------------------
+# Persistent Volumes & Networks
+# ------------------------------------------------------------------------------
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  agri-rakshak-net:
+    driver: bridge
